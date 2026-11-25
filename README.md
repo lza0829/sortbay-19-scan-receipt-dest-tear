@@ -1,0 +1,38 @@
+# 分拣过机台（Sortbay）
+
+骨架：过机扫描装载 → 口门路由裁决 → 错分回流批次 → 封袋班次对账
+
+- 前端 http://127.0.0.1:6600
+- API http://127.0.0.1:11600
+
+## 缺目的地过机装载闸（口径见 `backend/docs/ADR-001-缺目的地装载口径.md`）
+
+全局唯一口径：**告警仍装载、落「待补目的地」待补码**（架构 B）。
+
+- 缺目的地码过机：落扫描行但状态为 `待补目的地`，**不进待路由桶、不可裁决**；
+  缺码事实落 `reject_reason` 与审计，回执标 `装载结果=待补码`，不假装成功。
+- 补码口 `POST /api/扫描/{id}/补码`：仅待补码件可补，补齐后翻 `待路由` 方可裁决。
+- 读路径（扫描册/待路由桶/总览）与写路径共用同一谓词
+  `app.services.loading.can_enter_routing`，可由写入侧重放。
+- 装载在单连接 `BEGIN IMMEDIATE` 事务内完成，失败整笔回滚；
+  班次内条码唯一索引 `ux_scans_barcode_shift` 兜底并发双装。
+
+### 关键接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/扫描` | 过机装载写口（缺码落待补码，回执含 `装载结果/可裁决/拒因`） |
+| GET | `/api/扫描/待补码` | 待补码视图（缺码事实可核） |
+| GET | `/api/待路由桶` | 仅含通过谓词的可裁决件 |
+| POST | `/api/扫描/{id}/补码` | 臂内补码口 |
+| POST | `/api/扫描/{id}/路由` | 路由裁决（谓词硬挡缺码件） |
+| GET | `/api/总览` | 分布（含 `待补目的地`）与 `脏行/脏行数` 自检 |
+| GET | `/api/审计` | 审计流水 |
+
+## 测试
+
+```bash
+cd backend
+python -m venv ../.venv && ../.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+SORTBAY_DB=/tmp/sortbay-test.db ../.venv/bin/python -m pytest tests/ -q
+```
