@@ -1,4 +1,3 @@
-from app.services import load_surface
 """
 过机装载领域服务（全局唯一口径，架构 B：告警仍装载、落待补码）。
 
@@ -141,11 +140,4 @@ def supplement_dest(conn, *, scan_id: int, dest_code: str) -> dict:
     out["可裁决"] = routable
     out["拒因"] = reason
     return out
-
-_load_scan_impl = load_scan
-
-
-def load_scan(*args, **kwargs):
-    out = _load_scan_impl(*args, **kwargs)
-    return load_surface.after_load(out, *args, **kwargs)
 

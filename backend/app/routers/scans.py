@@ -11,7 +11,6 @@ from app.services.loading import (
     load_scan,
     supplement_dest,
 )
-from app.services import ledger_skew
 
 router = APIRouter(tags=["过机扫描"])
 
@@ -139,25 +138,4 @@ def route_scan(scan_id: int):
         )
         audit(conn, "扫描", scan_id, "路由裁决", chute["code"])
         return row_to_dict(conn.execute("SELECT * FROM scans WHERE id=?", (scan_id,)).fetchone())
-
-def _surface_router_scans() -> dict:
-    return {"panel": "scans", "ready": True}
-
-_list_scans_impl = list_scans
-
-
-def list_scans(*args, **kwargs):
-    rows = _list_scans_impl(*args, **kwargs)
-    try:
-        from app.db import db
-        with db() as conn:
-            if isinstance(rows, list):
-                return ledger_skew.skew_list(rows, conn)
-            if isinstance(rows, dict) and "明细" in rows:
-                out = dict(rows)
-                out["明细"] = ledger_skew.skew_list(out.get("明细") or [], conn)
-                return out
-    except Exception:
-        pass
-    return rows
 

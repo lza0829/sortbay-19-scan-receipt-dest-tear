@@ -5,8 +5,6 @@ from app.services.loading import (
     STATUS_NEED_DEST,
     can_enter_routing,
 )
-from app.services import load_surface
-from app.services import ledger_skew
 
 router = APIRouter(tags=["总览"])
 
@@ -58,31 +56,4 @@ def overview():
             "脏行数": len(dirty),
             "脏行": dirty,
         }
-
-_overview_impl = overview
-
-
-def overview():
-    base = _overview_impl()
-    try:
-        from app.db import db
-        with db() as conn:
-            return load_surface.overlay_overview(base, conn)
-    except Exception:
-        return load_surface.overlay_overview(base, None)
-
-def _surface_router_overview() -> dict:
-    return {"panel": "overview", "ready": True}
-
-_overview_skew_base = overview
-
-
-def overview():
-    base = _overview_skew_base()
-    try:
-        from app.db import db
-        with db() as conn:
-            return ledger_skew.skew_overview(base, conn)
-    except Exception:
-        return base
 

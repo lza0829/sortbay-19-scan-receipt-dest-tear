@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from app.db import db, rows_to_list, row_to_dict
 from app.services.common import audit, now_str
+from app.services.replay import replay_shift
 
 router = APIRouter(tags=["班次"])
 
@@ -48,6 +49,8 @@ def reconcile(shift_id: int | None = None):
             "SELECT COUNT(*) c FROM scans WHERE shift_id=? AND status='待补目的地'",
             (sid,),
         ).fetchone()["c"]
+        # 架构一同命运重放：目的地谓词/册页正式行/待路由水位/过机审计四侧对账
+        replay = replay_shift(conn, sid)
         return {
             "班次": row_to_dict(shift),
             "扫描总数": scan_n,
@@ -57,6 +60,11 @@ def reconcile(shift_id: int | None = None):
             "回流批次数": divert_n,
             "未清件数": pending,
             "待补码件数": need_dest,
+            "重放对账": {
+                "一致": replay["一致"],
+                "重放": replay["重放"],
+                "撕裂件": replay["撕裂件"],
+            },
         }
 
 
@@ -101,7 +109,4 @@ def seal_shift(shift_id: int):
         )
         audit(conn, "班次", shift_id, "封班", "")
         return row_to_dict(conn.execute("SELECT * FROM shifts WHERE id=?", (shift_id,)).fetchone())
-
-def _surface_router_shifts() -> dict:
-    return {"panel": "shifts", "ready": True}
 

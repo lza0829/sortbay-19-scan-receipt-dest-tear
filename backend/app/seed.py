@@ -52,12 +52,17 @@ def seed_if_empty() -> None:
             ("口门软容量提示", "120", "回流自动再路由", "否"),
         )
         # 预置一笔待路由扫描，方便冒烟看见分布
-        conn.execute(
+        cur = conn.execute(
             """
             INSERT INTO scans(barcode, dest_code, shift_id, line_id, status, scanned_at, note)
             VALUES (?, ?, ?, ?, '待路由', ?, ?)
             """,
             ("YB202611240001", "110", shift_id, line_id, now, "种子待路由"),
+        )
+        # 种子扫描同样遵循「册页行与过机审计同命运」不变量，避免重放对账误报撕裂
+        conn.execute(
+            "INSERT INTO audit_events(kind, ref_id, action, created_at, note) VALUES (?, ?, ?, ?, ?)",
+            ("扫描", cur.lastrowid, "过机装载", now, "YB202611240001"),
         )
         conn.execute(
             "INSERT INTO audit_events(kind, ref_id, action, created_at, note) VALUES (?, ?, ?, ?, ?)",
